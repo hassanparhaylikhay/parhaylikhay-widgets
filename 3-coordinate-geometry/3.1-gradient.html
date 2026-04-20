@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Parhaylikhay · Gradient of a Straight Line</title>
+  <meta property="og:title" content="Gradient of a Straight Line"/>
+  <meta property="og:type" content="video.other"/>
+  <meta property="og:video:type" content="text/html"/>
+  <meta property="og:video:width" content="600"/>
+  <meta property="og:video:height" content="540"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" crossorigin="anonymous"
+    onload="renderMathInElement(document.body,{delimiters:[{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}]})"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      background: #0d1216;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .header { width: 560px; padding: 14px 4px 6px; }
+    .title { color: #00abfa; font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .instruction { color: #b4b2a9; font-size: 13px; line-height: 1.5; }
+    .eq-bar {
+      width: 560px; padding: 10px 4px;
+      font-size: 18px; font-weight: 700;
+      color: #f0f0ee; min-height: 44px;
+      display: flex; align-items: center;
+    }
+    canvas { display: block; cursor: crosshair; }
+    .footer { width: 560px; padding: 8px 4px 14px; }
+    .tip { color: #0fee89; font-size: 13px; line-height: 1.9; }
+    .tip strong { font-weight: 600; }
+    /* Inline fraction helper */
+    .kfrac {
+      display: inline-flex; flex-direction: column; align-items: center;
+      vertical-align: middle; gap: 0; line-height: 1.15; margin: 0 3px;
+    }
+    .kfrac .knum { border-bottom: 2px solid currentColor; padding: 1px 4px; text-align: center; font-size: 0.88em; }
+    .kfrac .kden { padding: 1px 4px; text-align: center; font-size: 0.88em; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="title">Gradient of a Straight Line</div>
+  <div class="instruction">
+    Drag <b style="color:#00abfa">A</b> or <b style="color:#ff4670">B</b> anywhere on the grid — rise, run, and <i>m</i> update live.
+  </div>
+</div>
+
+<div class="eq-bar" id="eq-bar">\(m = \dfrac{y_2 - y_1}{x_2 - x_1}\)</div>
+
+<canvas id="graph"></canvas>
+
+<div class="footer">
+  <div class="tip">
+    Cambridge tip: <strong>write \(m = \dfrac{y_2 - y_1}{x_2 - x_1}\) and substitute — that earns M1</strong>
+    even if the arithmetic goes wrong. Negative \(m\) = slopes down left to right.
+    Horizontal line: \(m = 0\). Vertical line: \(m\) is undefined.
+  </div>
+</div>
+
+<script>
+  var canvas = document.getElementById('graph');
+  var ctx    = canvas.getContext('2d');
+  var W = 560, H = 400;
+  var DPR = window.devicePixelRatio || 1;
+  canvas.width  = W * DPR;
+  canvas.height = H * DPR;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(DPR, DPR);
+
+  var PAD = { l: 44, r: 20, t: 18, b: 38 };
+  var X_MIN = -6, X_MAX = 6, Y_MIN = -4, Y_MAX = 4;
+
+  var IW = W - PAD.l - PAD.r;
+  var IH = H - PAD.t - PAD.b;
+  var SCALE = Math.min(IW / (X_MAX - X_MIN), IH / (Y_MAX - Y_MIN));
+  var OX = PAD.l + (IW - SCALE * (X_MAX - X_MIN)) / 2;
+  var OY = PAD.t + (IH - SCALE * (Y_MAX - Y_MIN)) / 2;
+
+  function toC(mx, my) {
+    return { x: OX + (mx - X_MIN) * SCALE, y: OY + (Y_MAX - my) * SCALE };
+  }
+  function fromC(cx, cy) {
+    return { mx: X_MIN + (cx - OX) / SCALE, my: Y_MAX - (cy - OY) / SCALE };
+  }
+
+  var ptA = { mx: -3, my: -1 };
+  var ptB = { mx:  3,  my:  3 };
+  var drag = null;
+  var HIT  = 18;
+
+  function snap(v)          { return Math.round(v); }
+  function clampX(v)        { return Math.max(X_MIN + 1, Math.min(X_MAX - 1, v)); }
+  function clampY(v)        { return Math.max(Y_MIN + 1, Math.min(Y_MAX - 1, v)); }
+  function fmt(n)           { var r = Math.round(n * 100) / 100; return r % 1 === 0 ? String(r) : r.toFixed(2); }
+
+  function fmtGrad(rise, run) {
+    if (Math.abs(run) < 0.01) return 'undefined';
+    var m = rise / run;
+    if (Math.abs(m) < 0.005) return '0';
+    var num = Math.round(rise), den = Math.round(run);
+    if (Math.abs(num - rise) < 0.05 && Math.abs(den - run) < 0.05 && den !== 0) {
+      function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { var t=b; b=a%b; a=t; } return a; }
+      var g = gcd(Math.abs(num), Math.abs(den));
+      num /= g; den /= g;
+      if (den < 0) { num = -num; den = -den; }
+      return den === 1 ? String(num) : num + '/' + den;
+    }
+    return (Math.round(m * 100) / 100).toFixed(2);
+  }
+
+  // Inline HTML fraction helper
+  function FRAC(num, den) {
+    return '<span class="kfrac"><span class="knum">' + num + '</span><span class="kden">' + den + '</span></span>';
+  }
+
+  function drawGrid() {
+    ctx.strokeStyle = '#111f2c'; ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    for (var ky = Y_MIN; ky <= Y_MAX; ky++) {
+      var a = toC(X_MIN, ky), b = toC(X_MAX, ky);
+      ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+    }
+    for (var kx = X_MIN; kx <= X_MAX; kx++) {
+      var a = toC(kx, Y_MIN), b = toC(kx, Y_MAX);
+      ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = '#3a5060'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    var ax = toC(X_MIN, 0), bx = toC(X_MAX, 0);
+    ctx.moveTo(ax.x, ax.y); ctx.lineTo(bx.x, bx.y);
+    var ay = toC(0, Y_MIN), by = toC(0, Y_MAX);
+    ctx.moveTo(ay.x, ay.y); ctx.lineTo(by.x, by.y);
+    ctx.stroke();
+
+    ctx.fillStyle = '#4a6070'; ctx.font = '13px -apple-system, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (var kx = X_MIN + 1; kx < X_MAX; kx++) {
+      if (kx === 0) continue;
+      var p = toC(kx, 0); ctx.fillText(kx, p.x, p.y + 3);
+    }
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (var ky = Y_MIN + 1; ky < Y_MAX; ky++) {
+      if (ky === 0) continue;
+      var p = toC(0, ky); ctx.fillText(ky, p.x - 4, p.y);
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0d1216'; ctx.fillRect(0, 0, W, H);
+    drawGrid();
+
+    var ax = ptA.mx, ay = ptA.my;
+    var bx = ptB.mx, by = ptB.my;
+    var pA = toC(ax, ay), pB = toC(bx, by);
+    var rise = by - ay, run = bx - ax;
+
+    // Extended faint line
+    if (Math.abs(run) > 0.01) {
+      var m = rise / run;
+      var xL = X_MIN, yL = m * (xL - ax) + ay;
+      var xR = X_MAX, yR = m * (xR - ax) + ay;
+      if (yL < Y_MIN) { xL = ax + (Y_MIN - ay) / m; yL = Y_MIN; }
+      if (yL > Y_MAX) { xL = ax + (Y_MAX - ay) / m; yL = Y_MAX; }
+      if (yR < Y_MIN) { xR = ax + (Y_MIN - ay) / m; yR = Y_MIN; }
+      if (yR > Y_MAX) { xR = ax + (Y_MAX - ay) / m; yR = Y_MAX; }
+      if (xL > xR) { var tmp=xL; xL=xR; xR=tmp; tmp=yL; yL=yR; yR=tmp; }
+      var lp0 = toC(xL, yL), lp1 = toC(xR, yR);
+      ctx.strokeStyle = '#00abfa30'; ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.moveTo(lp0.x, lp0.y); ctx.lineTo(lp1.x, lp1.y); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Main segment A→B
+    ctx.strokeStyle = '#00abfa'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(pA.x, pA.y); ctx.lineTo(pB.x, pB.y); ctx.stroke();
+
+    // Rise/run triangle
+    var corner = toC(bx, ay);
+    if (Math.abs(run) > 0.4 && Math.abs(rise) > 0.4) {
+      ctx.strokeStyle = '#fff06788'; ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath(); ctx.moveTo(pA.x, pA.y); ctx.lineTo(corner.x, corner.y); ctx.stroke();
+
+      ctx.strokeStyle = '#0fee8988';
+      ctx.beginPath(); ctx.moveTo(corner.x, corner.y); ctx.lineTo(pB.x, pB.y); ctx.stroke();
+      ctx.setLineDash([]);
+
+      var sq = 7, dx = run > 0 ? sq : -sq, dy = rise > 0 ? -sq : sq;
+      ctx.strokeStyle = '#5a7080'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(corner.x + dx, corner.y); ctx.lineTo(corner.x + dx, corner.y + dy); ctx.lineTo(corner.x, corner.y + dy);
+      ctx.stroke();
+
+      ctx.font = 'bold 14px -apple-system, sans-serif';
+      ctx.fillStyle = '#fff067';
+      ctx.textAlign = 'center'; ctx.textBaseline = rise > 0 ? 'bottom' : 'top';
+      ctx.fillText('run = ' + fmt(run), (pA.x + corner.x) / 2, pA.y + (rise > 0 ? -5 : 5));
+      ctx.fillStyle = '#0fee89';
+      ctx.textAlign = run > 0 ? 'left' : 'right'; ctx.textBaseline = 'middle';
+      ctx.fillText('rise = ' + fmt(rise), corner.x + (run > 0 ? 7 : -7), (corner.y + pB.y) / 2);
+    }
+
+    // Points
+    function drawPt(px, py, label, coord, color, above) {
+      ctx.fillStyle = '#0d1216';
+      ctx.beginPath(); ctx.arc(px, py, 9, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(px, py, 9, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = color; ctx.font = 'bold 14px -apple-system, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = above ? 'bottom' : 'top';
+      ctx.fillText(label + ' (' + coord + ')', px, py + (above ? -13 : 13));
+    }
+    drawPt(pA.x, pA.y, 'A', fmt(ax) + ', ' + fmt(ay), '#00abfa', true);
+    drawPt(pB.x, pB.y, 'B', fmt(bx) + ', ' + fmt(by), '#ff4670', false);
+
+    // m gradient label at midpoint of AB
+    if (Math.abs(run) > 0.01) {
+      var mVal = rise / run;
+      var mStr = fmtGrad(rise, run);
+      var mColor = mVal > 0 ? '#0fee89' : mVal < 0 ? '#ff4670' : '#b4b2a9';
+      var midPx = (pA.x + pB.x) / 2, midPy = (pA.y + pB.y) / 2;
+      var angle = Math.atan2(pB.y - pA.y, pB.x - pA.x);
+      ctx.save();
+      ctx.translate(midPx, midPy); ctx.rotate(angle);
+      ctx.fillStyle = mColor; ctx.font = 'bold 15px -apple-system, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText('m = ' + mStr, 0, -8);
+      ctx.restore();
+    }
+
+    // Eq bar — proper fraction HTML
+    var eqEl = document.getElementById('eq-bar');
+    if (Math.abs(run) < 0.01) {
+      eqEl.innerHTML = '<span style="color:#ff4670">Vertical line — gradient is <strong>undefined</strong></span>';
+    } else {
+      var mVal2 = rise / run;
+      var mStr2 = fmtGrad(rise, run);
+      var mColor2 = mVal2 > 0 ? '#0fee89' : mVal2 < 0 ? '#ff4670' : '#b4b2a9';
+      eqEl.innerHTML =
+        '<span style="color:#b4b2a9">m = </span>' +
+        FRAC('<span style="color:#0fee89">' + fmt(by) + ' − ' + fmt(ay) + '</span>',
+             '<span style="color:#fff067">' + fmt(bx) + ' − ' + fmt(ax) + '</span>') +
+        ' = ' +
+        FRAC('<span style="color:#0fee89">' + fmt(rise) + '</span>',
+             '<span style="color:#fff067">' + fmt(run) + '</span>') +
+        ' = <span style="color:' + mColor2 + '; font-size:1.15em; font-weight:bold"> ' + mStr2 + '</span>';
+    }
+  }
+
+  function getPos(e) {
+    var r = canvas.getBoundingClientRect();
+    var s = e.touches ? e.touches[0] : e;
+    return { cx: (s.clientX - r.left) * (W / r.width), cy: (s.clientY - r.top) * (H / r.height) };
+  }
+  function hitTest(pos) {
+    var pA = toC(ptA.mx, ptA.my), pB = toC(ptB.mx, ptB.my);
+    if (Math.hypot(pos.cx - pA.x, pos.cy - pA.y) < HIT) return 'A';
+    if (Math.hypot(pos.cx - pB.x, pos.cy - pB.y) < HIT) return 'B';
+    return null;
+  }
+  function moveDrag(pos) {
+    var m = fromC(pos.cx, pos.cy);
+    var sn = { mx: clampX(snap(m.mx)), my: clampY(snap(m.my)) };
+    if (drag === 'A') ptA = sn; else ptB = sn;
+    draw();
+  }
+  canvas.addEventListener('mousedown',  function(e) { drag = hitTest(getPos(e)); if (drag) canvas.style.cursor = 'grabbing'; });
+  canvas.addEventListener('mousemove',  function(e) { var p = getPos(e); if (!drag) { canvas.style.cursor = hitTest(p) ? 'grab' : 'crosshair'; return; } moveDrag(p); });
+  canvas.addEventListener('mouseup',    function()  { drag = null; canvas.style.cursor = 'crosshair'; });
+  canvas.addEventListener('mouseleave', function()  { drag = null; });
+  canvas.addEventListener('touchstart', function(e) { e.preventDefault(); drag = hitTest(getPos(e)); }, { passive: false });
+  canvas.addEventListener('touchmove',  function(e) { e.preventDefault(); if (drag) moveDrag(getPos(e)); }, { passive: false });
+  canvas.addEventListener('touchend',   function()  { drag = null; });
+
+  draw();
+</script>
+</body>
+</html>
